@@ -28,7 +28,7 @@ class BaseInputFilter implements
     /**
      * @var InputInterface[]|InputFilterInterface[]
      */
-    protected $inputs = array();
+    protected $inputs = [];
 
     /**
      * @var InputInterface[]|InputFilterInterface[]
@@ -210,8 +210,7 @@ class BaseInputFilter implements
      */
     public function isValid($context = null)
     {
-        $data = $this->getRawValues();
-        if (null === $data) {
+        if (null === $this->data) {
             throw new Exception\RuntimeException(sprintf(
                 '%s: no data present to validate!',
                 __METHOD__
@@ -219,32 +218,63 @@ class BaseInputFilter implements
         }
 
         $inputs = $this->validationGroup ?: array_keys($this->inputs);
-        return $this->validateInputs($inputs, $data, $context);
+        return $this->validateInputs($inputs, $this->data, $context);
     }
 
     /**
      * Validate a set of inputs against the current data
      *
-     * @param  array      $inputs
-     * @param  array      $data
+     * @param  array $inputs
+     * @param  array|ArrayAccess $data
      * @param  mixed|null $context
      * @return bool
      */
-    protected function validateInputs(array $inputs, array $data = array(), $context = null)
+    protected function validateInputs(array $inputs, $data = [], $context = null)
     {
         // backwards compatibility
         if (empty($data)) {
             $data = $this->getRawValues();
         }
 
-        $this->validInputs   = array();
-        $this->invalidInputs = array();
+        $this->validInputs   = [];
+        $this->invalidInputs = [];
         $valid               = true;
 
         foreach ($inputs as $name) {
-            $input      = $this->inputs[$name];
+            $input       = $this->inputs[$name];
+            $hasFallback = ($input instanceof Input && $input->hasFallback());
 
-            // make sure we have a value (empty) for validation of context
+            // If the value is required, not present in the data set, and
+            // has no fallback, validation fails.
+            if (!array_key_exists($name, $data)
+                && $input instanceof InputInterface
+                && $input->isRequired()
+                && !$hasFallback
+            ) {
+                $input->setErrorMessage('Value is required');
+                $this->invalidInputs[$name] = $input;
+
+                if ($input->breakOnFailure()) {
+                    return false;
+                }
+
+                $valid = false;
+                continue;
+            }
+
+            // If the value is required, not present in the data set, and
+            // has a fallback, validation passes, and we set the input
+            // value to the fallback.
+            if (!array_key_exists($name, $data)
+                && $input instanceof InputInterface
+                && $input->isRequired()
+                && $hasFallback
+            ) {
+                $input->setValue($input->getFallbackValue());
+                continue;
+            }
+
+            // Make sure we have a value (empty) for validation of context
             if (!array_key_exists($name, $data)) {
                 $data[$name] = null;
             }
@@ -310,7 +340,7 @@ class BaseInputFilter implements
         }
 
         if (is_array($name)) {
-            $inputs = array();
+            $inputs = [];
             foreach ($name as $key => $value) {
                 if (! $this->has($key)) {
                     $inputs[] = $value;
@@ -353,7 +383,7 @@ class BaseInputFilter implements
      */
     public function getInvalidInput()
     {
-        return (is_array($this->invalidInputs) ? $this->invalidInputs : array());
+        return (is_array($this->invalidInputs) ? $this->invalidInputs : []);
     }
 
     /**
@@ -366,7 +396,7 @@ class BaseInputFilter implements
      */
     public function getValidInput()
     {
-        return (is_array($this->validInputs) ? $this->validInputs : array());
+        return (is_array($this->validInputs) ? $this->validInputs : []);
     }
 
     /**
@@ -405,7 +435,7 @@ class BaseInputFilter implements
     public function getValues()
     {
         $inputs = $this->validationGroup ?: array_keys($this->inputs);
-        $values = array();
+        $values = [];
         foreach ($inputs as $name) {
             $input = $this->inputs[$name];
 
@@ -448,7 +478,7 @@ class BaseInputFilter implements
      */
     public function getRawValues()
     {
-        $values = array();
+        $values = [];
         foreach ($this->inputs as $name => $input) {
             if ($input instanceof InputFilterInterface) {
                 $values[$name] = $input->getRawValues();
@@ -470,7 +500,7 @@ class BaseInputFilter implements
      */
     public function getMessages()
     {
-        $messages = array();
+        $messages = [];
         foreach ($this->getInvalidInput() as $name => $input) {
             $messages[$name] = $input->getMessages();
         }
@@ -515,12 +545,12 @@ class BaseInputFilter implements
             if (!isset($this->data[$name])) {
                 // No value; clear value in this input
                 if ($input instanceof InputFilterInterface) {
-                    $input->setData(array());
+                    $input->setData([]);
                     continue;
                 }
 
                 if ($input instanceof ArrayInput) {
-                    $input->setValue(array());
+                    $input->setValue([]);
                     continue;
                 }
 
@@ -583,7 +613,7 @@ class BaseInputFilter implements
         $inputs = array_keys($this->inputs);
         $diff   = array_diff($data, $inputs);
 
-        $unknownInputs = array();
+        $unknownInputs = [];
         $intersect     = array_intersect($diff, $data);
         if (!empty($intersect)) {
             foreach ($intersect as $key) {

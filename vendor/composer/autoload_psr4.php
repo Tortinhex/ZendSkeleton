@@ -56,4 +56,6 @@ return array(
     'Zend\\Barcode\\' => array($vendorDir . '/zendframework/zend-barcode/src'),
     'Zend\\Authentication\\' => array($vendorDir . '/zendframework/zend-authentication/src'),
     'Symfony\\Component\\Yaml\\' => array($vendorDir . '/symfony/yaml'),
+    'Symfony\\Component\\Console\\' => array($vendorDir . '/symfony/console'),
+    'Doctrine\\Instantiator\\' => array($vendorDir . '/doctrine/instantiator/src/Doctrine/Instantiator'),
 );
